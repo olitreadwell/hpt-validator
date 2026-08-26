@@ -32,14 +32,8 @@ export function errorObjectToValidationAlert(
 
 export function removeBOM(chunk: string): string {
   // strip utf-8 BOM: see https://en.wikipedia.org/wiki/Byte_order_mark#UTF-8
-  const dataBuffer = Buffer.from(chunk);
-  if (
-    dataBuffer.length > 2 &&
-    dataBuffer[0] === 0xef &&
-    dataBuffer[1] === 0xbb &&
-    dataBuffer[2] === 0xbf
-  ) {
-    chunk = chunk.trimStart();
+  if (chunk.charCodeAt(0) === 0xfeff) {
+    return chunk.slice(1);
   }
   return chunk;
 }
