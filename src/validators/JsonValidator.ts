@@ -215,7 +215,7 @@ export class JsonValidator extends BaseValidator {
       bind(this.metadataCallback, this);
     }
 
-    return new Promise(async (resolve) => {
+    return new Promise<ValidationResult>(async (resolve, reject) => {
       const errors = this.errors;
       const alerts = this.alerts;
       parser.onValue = ({ value, key, stack }) => {
@@ -372,7 +372,13 @@ export class JsonValidator extends BaseValidator {
         });
       };
 
-      parseJson(input, parser);
+      parseJson(input, parser).catch((error) => {
+        // A read error on the input stream must reject validate() rather than
+        // crash the process from inside the stream's "error" listener.
+        parser.onEnd = () => null;
+        parser.onError = () => null;
+        reject(error);
+      });
     });
   }
 }
@@ -400,19 +406,22 @@ export async function parseJson(
 
     readChunk();
   } else {
-    let firstChunk = true;
     const jsonStream = jsonInput as NodeJS.ReadableStream;
-    jsonStream.on("end", () => parser.end());
-    jsonStream.on("error", (e) => {
-      throw e;
-    });
-    jsonStream.on("data", (data: string) => {
-      // strip utf-8 BOM: see https://en.wikipedia.org/wiki/Byte_order_mark#UTF-8
-      if (firstChunk) {
-        data = removeBOM(data);
-        firstChunk = false;
-      }
-      parser.write(data);
+    return new Promise<void>((resolve, reject) => {
+      let firstChunk = true;
+      jsonStream.on("end", () => {
+        parser.end();
+        resolve();
+      });
+      jsonStream.on("error", (error) => reject(error));
+      jsonStream.on("data", (data: string) => {
+        // strip utf-8 BOM: see https://en.wikipedia.org/wiki/Byte_order_mark#UTF-8
+        if (firstChunk) {
+          data = removeBOM(data);
+          firstChunk = false;
+        }
+        parser.write(data);
+      });
     });
   }
 }

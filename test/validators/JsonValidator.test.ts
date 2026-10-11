@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { Readable } from "node:stream";
 import { ValidationError } from "../../src/errors/ValidationError.js";
 import { InvalidJsonError } from "../../src/errors/json/InvalidJsonError.js";
 import {
@@ -149,6 +150,15 @@ describe("JsonValidator", () => {
       expect(result.valid).toBe(false);
       expect(result.errors).toHaveLength(1);
       expect(result.errors[0]).toBeInstanceOf(InvalidJsonError);
+    });
+
+    it("should reject when the input stream emits an error", async () => {
+      const input = new Readable({
+        read() {
+          this.destroy(new Error("transfer cut"));
+        },
+      });
+      await expect(validator.validate(input)).rejects.toThrow("transfer cut");
     });
 
     it("should limit the number of errors returned when the maxErrors option is used", async () => {
